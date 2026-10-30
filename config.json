@@ -25,7 +25,7 @@
     "8984714130"
   ],
   "devUsers": [
-    "8984714130
+    "8984714130"
   ],
   "notes_premiumUsers": "List of Telegram User IDs with premium access (role 3)",
   "notes_devUsers": "List of Telegram Developer IDs with full access (role 4 - required for /shell and /eval)",
