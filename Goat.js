@@ -5,6 +5,9 @@
 
 const log = require("./logger/log.js");
 
+// Le bot est-il complètement démarré ? (sert à ne pas planter pour une erreur de commande)
+let booted = false;
+
 // Handle runtime process exceptions cleanly
 process.on("unhandledRejection", (error) => {
         log.error("UNHANDLED_REJECTION", error?.message || error);
@@ -13,7 +16,8 @@ process.on("unhandledRejection", (error) => {
 process.on("uncaughtException", (error) => {
         log.error("UNCAUGHT_EXCEPTION", error?.message || error);
         log.error("UNCAUGHT_EXCEPTION", error?.stack || "No stack trace");
-        setTimeout(() => process.exit(1), 1000);
+        // Au démarrage : on quitte (config cassée, etc.). Une fois démarré : on reste en vie.
+        if (!booted) setTimeout(() => process.exit(1), 1000);
 });
 
 const path = require("path");
@@ -33,8 +37,30 @@ if (!fs.existsSync(dirConfig)) {
         process.exit(1);
 }
 
-const config = require(dirConfig);
-const configCommands = fs.existsSync(dirConfigCommands) ? require(dirConfigCommands) : { envGlobal: {}, envCommands: {}, envEvents: {} };
+// Lecture de config.json avec message d'erreur clair (ligne/colonne du problème)
+function readJSONFile(file, fallback) {
+        if (!fs.existsSync(file)) return fallback;
+        const raw = fs.readFileSync(file, "utf8").replace(/^﻿/, "");
+        try {
+                return JSON.parse(raw);
+        } catch (e) {
+                const m = /position (\d+)/.exec(e.message);
+                if (m) {
+                        const pos = Number(m[1]);
+                        const before = raw.slice(0, pos);
+                        const line = before.split("\n").length;
+                        const col = pos - before.lastIndexOf("\n");
+                        const bad = raw[pos] !== undefined ? JSON.stringify(raw[pos]) : "fin de fichier";
+                        log.error("CONFIG", `${path.basename(file)} invalide : ${e.message} → ligne ${line}, colonne ${col}, caractère ${bad}`);
+                } else {
+                        log.error("CONFIG", `${path.basename(file)} invalide : ${e.message}`);
+                }
+                process.exit(1);
+        }
+}
+
+const config = readJSONFile(dirConfig);
+const configCommands = readJSONFile(dirConfigCommands, { envGlobal: {}, envCommands: {}, envEvents: {} });
 
 // Setup global GoatBot object
 global.GoatBot = {
@@ -135,6 +161,10 @@ const memoryManager = new MemoryManager();
                 const initDB = require("./database/controller/index.js");
                 await initDB(null);
 
+                // Compatibilité style Cassidy : getCache, getItem, setItem, queryItem...
+                // (corrige "threadsDB.getCache is not a function" dans une vingtaine de commandes)
+                require("./database/compat/cassidyCompat.js")(global.db);
+
                 // 2. Load Commands and Events
                 const loadScripts = require("./bot/login/loadScripts.js");
                 await loadScripts(global.db);
@@ -158,6 +188,7 @@ const memoryManager = new MemoryManager();
                 }
 
                 // 4. Start Express Web Dashboard
+                // (écoute sur process.env.PORT : nécessaire pour que Render détecte le service)
                 if (config.dashBoard?.enable !== false) {
                         try {
                                 const startDashboard = require("./dashboard/app.js");
@@ -167,7 +198,10 @@ const memoryManager = new MemoryManager();
                         }
                 }
 
+                booted = true;
+
         } catch (err) {
                 log.error("FATAL_START", `Error starting GoatBot: ${err.stack || err.message}`);
         }
 })();
+                                
