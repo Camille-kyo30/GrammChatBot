@@ -10,7 +10,7 @@
   },
   "language": "en",
   "notesLanguage": "change to your language with ISO 639-1 code, available languages: vi (Vietnamese), en (English)",
-  "nickNameBot": "GrammChatBot",
+  "nickNameBot": "Mini Bot🎀",
   "prefix": "¥",
   "noPrefix": true,
   "noPrefixNotes": "When true, Bot Admins (role 2) and Developers (role 4) can run commands without the prefix",
